@@ -1,0 +1,71 @@
+# The directory Mix will write compiled artifacts to.
+_build
+
+# If you run "mix test --cover", coverage assets end up here.
+cover
+
+# The directory Mix downloads your dependencies sources to.
+deps
+
+# Where third-party dependencies like ExDoc output generated docs.
+/doc/
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Ignore package tarball (built via "mix hex.build").
+phlex-*.tar
+
+# Temporary files, for example, from tests.
+tmp
+
+# Benchmark output files
+/benchmarks/output/
+
+# Dialyzer PLT files
+.plt
+.plt.hash
+priv
+
+# Credo cache
+.credo_cache/
+
+# ElixirLS (Language Server)
+.elixir_ls/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database files (SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+# Example project build artifacts and dependencies
+examples/*/_build/
+examples/*/deps/
+examples/*/cover/
+examples/*/tmp/
+examples/*/.elixir_ls/
+
+# Node modules (if any in examples)
+node_modules/
+
+# Log files
+*.log
+
+# Package tarballs in examples
+examples/*/*.tar
+examples/*/*.ez
+

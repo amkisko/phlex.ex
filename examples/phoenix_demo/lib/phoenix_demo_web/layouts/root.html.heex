@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title suffix=" · Phlex">
+      <%= assigns[:page_title] || "Component Gallery" %>
+    </.live_title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        line-height: 1.47059;
+        color: #1d1d1f;
+        background: #fbfbfd;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+    </style>
+    <link phx-track-static rel="stylesheet" href="/assets/css/app.css" />
+    <% 
+      # Pre-register navigation styles since navigation is always rendered
+      current_path = assigns[:uri] && assigns[:uri].path || "/"
+      nav_capsule_id = Phlex.StyleCapsule.capsule_id(PhoenixDemoWeb.Components.Navigation)
+      nav_styles = PhoenixDemoWeb.Components.Navigation.styles()
+      StyleCapsule.Phoenix.register_inline(
+        nav_styles, 
+        nav_capsule_id, 
+        namespace: PhoenixDemoWeb.StyleCapsuleConfig.namespace(), 
+        strategy: PhoenixDemoWeb.StyleCapsuleConfig.strategy()
+      )
+    %>
+  </head>
+  <body>
+    <%= raw PhoenixDemoWeb.Components.Navigation.render(%{current_path: current_path}) %>
+    <%= @inner_content %>
+    <% 
+      # Render all registered styles at the end of body after all components have rendered
+      # This captures styles from both pre-registered components (like navigation) 
+      # and components that register during render (like page components)
+      # Note: render_styles already returns <style> tags, so we output it directly
+      all_styles = StyleCapsule.Phoenix.render_styles(namespace: PhoenixDemoWeb.StyleCapsuleConfig.namespace())
+    %>
+    <%= if all_styles != "" do %>
+      <%= raw all_styles %>
+    <% end %>
+  </body>
+</html>
+

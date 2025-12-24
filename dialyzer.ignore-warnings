@@ -1,0 +1,7 @@
+# Dialyzer warnings to ignore
+# Format: regex patterns that match warning messages
+
+# All warnings from phlex.bench.ex are false positives:
+# - Benchee is an optional dev dependency
+# - Component modules are defined inside functions dynamically
+lib/mix/tasks/phlex.bench.ex

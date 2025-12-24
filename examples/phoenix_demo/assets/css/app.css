@@ -1,0 +1,11 @@
+/* Tailwind CSS v4 Configuration */
+@import "tailwindcss" source(none);
+@source "../lib/phoenix_demo_web";
+
+/* Enable class-based dark mode */
+@theme {
+  --color-*: initial;
+}
+
+/* Custom styles can be added here */
+
