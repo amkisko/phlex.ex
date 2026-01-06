@@ -1,0 +1,38 @@
+feature:
+  - head-branch: ["^feature", "feature"]
+patch:
+  - head-branch: ["^patch", "patch"]
+release:
+  - base-branch: main
+github config:
+  - changed-files:
+      - any-glob-to-any-file: .github/**
+config:
+  - changed-files:
+      - any-glob-to-any-file: ["config/**", "bin/**", "*"]
+elixir:
+  - changed-files:
+      - any-glob-to-any-file: "**/*.ex"
+      - any-glob-to-any-file: "**/*.exs"
+test:
+  - changed-files:
+      - any-glob-to-any-file: "test/**"
+javascript:
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.js", "**/*.jsx"]
+typescript:
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.ts", "**/*.tsx"]
+stylesheet:
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.css", "**/*.scss", "**/*.sass"]
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**/*", "**/*.md"]
+user scripts:
+  - changed-files:
+      - any-glob-to-any-file: "usr/**"
+migration:
+  - changed-files:
+      - any-glob-to-any-file: "priv/migrations/**"
+

@@ -3,66 +3,58 @@ name: test
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Erlang/OTP
-        uses: erlef/setup-beam@v1
-        with:
-          elixir-version: "1.18"
-          otp-version: "27"
-      
-      - name: Install dependencies
-        run: |
-          mix deps.get
-          mix deps.compile
-      
-      - name: Run tests
-        run: mix test
-      
-      - name: Run Credo
-        run: mix credo --strict
-        continue-on-error: true
-      
-      - name: Run Dialyzer
-        run: mix dialyzer
-        continue-on-error: true
-
   coverage:
-    name: Coverage
     runs-on: ubuntu-latest
-    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: good_job_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/good_job_test
+      ELIXIR_VERSION: "1.18"
+      OTP_VERSION: "27"
+      MIX_ENV: test
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Erlang/OTP
-        uses: erlef/setup-beam@v1
+      - uses: actions/checkout@v6
+      - uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.18"
-          otp-version: "27"
-      
-      - name: Install dependencies
-        run: |
-          mix deps.get
-          mix deps.compile
-      
-      - name: Run tests with coverage
-        run: MIX_ENV=test mix coveralls.json
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+      - name: Restore Mix/Hex/Rebar cache
+        uses: actions/cache@v4
         with:
-          file: ./cover/excoveralls.json
+          path: |
+            deps
+            _build
+            ~/.mix
+            ~/.hex
+            ~/.cache/rebar3
+          key: ${{ runner.os }}-beam-${{ env.OTP_VERSION }}-ex${{ env.ELIXIR_VERSION }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-beam-${{ env.OTP_VERSION }}-ex${{ env.ELIXIR_VERSION }}-mix-
+            ${{ runner.os }}-beam-${{ env.OTP_VERSION }}-ex${{ env.ELIXIR_VERSION }}-
+            ${{ runner.os }}-beam-
+      - run: mix deps.get
+      - run: mix deps.compile
+      - run: mix test.setup
+      - run: mix coveralls.json
+      - uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./cover/excoveralls.json
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
-
