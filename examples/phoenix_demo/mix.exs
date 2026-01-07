@@ -9,6 +9,7 @@ defmodule PhoenixDemo.MixProject do
       elixir_paths: elixir_paths(Mix.env()),
       compilers: Mix.compilers(),
       start_permanent: Mix.env() == :prod,
+      listeners: [Phoenix.CodeReloader],
       aliases: aliases(),
       deps: deps()
     ]
@@ -26,18 +27,18 @@ defmodule PhoenixDemo.MixProject do
 
   defp deps do
     [
-      {:phoenix, "~> 1.7.0"},
-      {:phoenix_live_view, "~> 0.20.0"},
-      {:phoenix_html, "~> 4.0"},
+      {:phoenix, "~> 1.8"},
+      {:phoenix_live_view, "~> 1.1"},
+      {:phoenix_html, "~> 4.3"},
       {:phoenix_html_helpers, "~> 1.0"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:gettext, "~> 0.20"},
-      {:jason, "~> 1.2"},
-      {:plug_cowboy, "~> 2.5"},
+      {:phoenix_live_reload, "~> 1.4", only: :dev},
+      {:gettext, "~> 0.24"},
+      {:jason, "~> 1.4"},
+      {:plug_cowboy, "~> 2.7"},
       {:phlex, path: "../.."},
-      {:style_capsule, path: "../../../style_capsule.ex", override: true},
+      {:style_capsule, "~> 0.8"},
       {:tailwind, "~> 0.2", runtime: Mix.env() == :dev},
-      {:ecto_sql, "~> 3.10"},
+      {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, "~> 0.10"}
     ]
   end

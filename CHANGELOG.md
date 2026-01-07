@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.2.0
+
+- Update optional Phoenix dependencies to the latest supported versions
+- Refresh development and test tooling dependencies
+- Silence non-error logging during tests by default
+- Update Phoenix demo dependencies and code reloader listener
+
 ## 0.1.0
 
 - Initial public release of `phlex.ex`
@@ -18,4 +25,3 @@
 - Quality assurance: Credo, Dialyzer, ExCoveralls
 - Example applications: Phoenix demo and standalone examples
 - Elixir >= 1.18 requirement
-
