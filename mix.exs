@@ -104,6 +104,7 @@ defmodule Phlex.MixProject do
       "test.all": ["test", "credo", "dialyzer"],
       quality: ["format --check-formatted", "credo --strict", "dialyzer", "test"],
       "quality.fix": ["format", "credo --strict"],
+      "test.setup": [],
       ci: ["test", "credo", "dialyzer"],
       bench: ["phlex.bench"]
     ]
