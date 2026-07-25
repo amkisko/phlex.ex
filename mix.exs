@@ -46,18 +46,18 @@ defmodule Phlex.MixProject do
       {:phoenix_live_view, "~> 1.1", optional: true},
       {:phoenix_html, "~> 4.3", optional: true},
       {:plug, "~> 1.19", optional: true},
-      {:plug_cowboy, "~> 2.7", optional: true},
+      {:plug_cowboy, "~> 2.8", optional: true},
 
       # StyleCapsule (optional, for CSS scoping)
       {:style_capsule, "~> 0.8", optional: true},
 
       # Testing
-      {:stream_data, "~> 1.2", only: :test},
+      {:stream_data, "~> 1.3", only: :test},
 
       # Code quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.39", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test, runtime: false},
       {:benchee, "~> 1.5", only: :dev, runtime: false},
       {:benchee_html, "~> 1.0", only: :dev, runtime: false}

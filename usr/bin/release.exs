@@ -2,6 +2,9 @@
 
 Mix.install([])
 
+:inets.start()
+:ssl.start()
+
 defmodule ReleaseScript do
   @moduledoc """
   Release script that ensures quality, runs tests, and publishes to Hex.
@@ -61,6 +64,8 @@ defmodule ReleaseScript do
       package_name = "phlex"
       hex_file = "#{package_name}-#{version}.tar"
 
+      warn_if_already_released(version, package_name)
+
       IO.puts("\n📦 Building package...")
       unless run_command("mix hex.build") do
         IO.puts("❌ Failed to build package.")
@@ -117,6 +122,32 @@ defmodule ReleaseScript do
       end
       false
     end
+  end
+
+  defp warn_if_already_released(version, package_name) do
+    warnings = []
+    warnings = if existing_git_tags(version) != [], do: warnings ++ ["git tag exists (#{Enum.join(existing_git_tags(version), ", ")})"], else: warnings
+    warnings = if hex_version_exists?(version, package_name), do: warnings ++ ["Hex has version #{version}"], else: warnings
+
+    unless warnings == [] do
+      IO.puts("\n\033[1;33mWarning: version #{version} may already be released (#{Enum.join(warnings, "; ")}).\033[0m")
+    end
+  end
+
+  defp existing_git_tags(version) do
+    Enum.filter([version, "v#{version}"], fn tag ->
+      {_, exit_code} = System.cmd("git", ["rev-parse", "--verify", "refs/tags/#{tag}"], stderr_to_stdout: true)
+      exit_code == 0
+    end)
+  end
+
+  defp hex_version_exists?(version, package_name) do
+    case :httpc.request(:get, {'https://hex.pm/api/packages/#{package_name}/releases/#{version}', []}, [{:timeout, 5000}], []) do
+      {:ok, {{_, 200, _}, _, _}} -> true
+      _ -> false
+    end
+  rescue
+    _ -> false
   end
 
   defp extract_version_from_file(filename) do

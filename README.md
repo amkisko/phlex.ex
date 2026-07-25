@@ -264,6 +264,18 @@ This project was inspired by and references several excellent projects:
 - **[Phoenix Framework](https://www.phoenixframework.org)** - The web framework that makes building real-time applications in Elixir a joy
 - **[Surface](https://surface-ui.org)** ([GitHub](https://github.com/surface-ui/surface)) - A component-based library for Phoenix that provided architectural inspiration
 
+## Links
+
+- [GitHub](https://github.com/amkisko/phlex.ex)
+- [GitLab](https://gitlab.com/amkisko/phlex.ex)
+- [Hex](https://hex.pm/packages/phlex)
+- [libraries.io](https://libraries.io/hex/phlex)
+- [Deps.dev](https://deps.dev/hex/phlex)
+- [SonarCloud](https://sonarcloud.io/project/overview?id=amkisko_phlex.ex)
+- [Snyk](https://snyk.io/test/github/amkisko/phlex.ex)
+- [Codecov](https://app.codecov.io/github/amkisko/phlex.ex)
+- [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/amkisko/phlex.ex)
+
 ## License
 
 The library is available as open source under the terms of the [MIT License](LICENSE.md).

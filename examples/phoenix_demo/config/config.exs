@@ -12,12 +12,14 @@ config :phoenix_demo, PhoenixDemoWeb.Endpoint,
 config :phoenix_demo, PhoenixDemoWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4000],
   check_origin: false,
-  code_reloader: true,
-  debug_errors: true,
+  code_reloader: config_env() == :dev,
+  debug_errors: config_env() == :dev,
   secret_key_base: "phoenix_demo_secret_key_base_for_development_only_change_in_production",
-  watchers: [
-    tailwind: {Tailwind, :install_and_run, [:phoenix_demo, ~w(--watch)]}
-  ]
+  watchers:
+    if(config_env() == :dev,
+      do: [tailwind: {Tailwind, :install_and_run, [:phoenix_demo, ~w(--watch)]}],
+      else: []
+    )
 
 config :phoenix_demo,
   ecto_repos: [PhoenixDemo.Repo]

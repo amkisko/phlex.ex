@@ -256,6 +256,7 @@ defmodule Phlex.SGML.Attributes do
 
   defp generate_styles(styles) when is_map(styles) do
     styles
+    |> Enum.sort_by(fn {k, _v} -> normalize_attribute_name(k) end)
     |> Enum.map(fn {k, v} ->
       prop = normalize_attribute_name(k)
 
