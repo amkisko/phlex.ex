@@ -97,7 +97,7 @@ defmodule Phlex.SGMLComprehensiveTest do
 
   test "append_raw works for trusted content" do
     state = SGML.State.new()
-    state = SGML.append_raw(state, "<strong>Bold</strong>")
+    state = SGML.append_raw(state, SGML.safe("<strong>Bold</strong>"))
     result = IO.iodata_to_binary(state.buffer)
     assert result == "<strong>Bold</strong>"
   end

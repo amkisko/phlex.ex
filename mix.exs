@@ -1,7 +1,7 @@
 defmodule Phlex.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @source_url "https://github.com/amkisko/phlex.ex"
 
   def project do
@@ -15,14 +15,6 @@ defmodule Phlex.MixProject do
       description: description(),
       docs: docs(),
       aliases: aliases(),
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.json": :test,
-        "coveralls.html": :test,
-        "test.all": :test,
-        credo: :test,
-        dialyzer: :test
-      ],
       dialyzer: [
         plt_add_apps: [:mix, :benchee],
         ignore_warnings: "dialyzer.ignore-warnings"
@@ -36,6 +28,21 @@ defmodule Phlex.MixProject do
   def application do
     [
       extra_applications: [:logger]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.json": :test,
+        "coveralls.html": :test,
+        "test.all": :test,
+        credo: :test,
+        dialyzer: :test,
+        quality: :test,
+        ci: :test
+      ]
     ]
   end
 

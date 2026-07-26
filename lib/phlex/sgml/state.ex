@@ -2,7 +2,7 @@ defmodule Phlex.SGML.State do
   @moduledoc """
   Rendering state for Phlex components.
 
-  Manages the buffer, rendering flags, and context during component rendering.
+  Manages the buffer, rendering flags, fragments, and cache capture contexts.
   """
 
   defstruct [
@@ -19,13 +19,16 @@ defmodule Phlex.SGML.State do
     :rendering
   ]
 
+  @type fragment_meta :: {non_neg_integer(), non_neg_integer() | nil, list()}
+  @type cache_entry :: %{map: map(), frozen_prefix_bytes: non_neg_integer()}
+
   @type t :: %__MODULE__{
           buffer: IO.chardata(),
           should_render: boolean(),
           user_context: map(),
           fragments: MapSet.t() | nil,
           fragment_depth: non_neg_integer(),
-          cache_stack: list(),
+          cache_stack: [cache_entry()],
           capturing: boolean(),
           output_buffer: IO.chardata(),
           fragment_map: map(),
@@ -57,24 +60,99 @@ defmodule Phlex.SGML.State do
   """
   def should_render?(%__MODULE__{fragments: nil}), do: true
   def should_render?(%__MODULE__{fragment_depth: depth}) when depth > 0, do: true
-  def should_render?(%__MODULE__{fragments: fragments}) when is_map(fragments) and map_size(fragments) == 0, do: false
   def should_render?(_), do: false
 
   @doc """
-  Increments the fragment depth for better fragment tracking.
+  Increments fragment depth unconditionally.
   """
   def begin_fragment(%__MODULE__{fragment_depth: depth} = state) do
     %{state | fragment_depth: depth + 1}
   end
 
   @doc """
-  Decrements the fragment depth.
+  Begins a named fragment: updates selective-render depth and cache offsets.
+  """
+  def begin_fragment(%__MODULE__{} = state, id) do
+    state
+    |> maybe_increment_fragment_depth(id)
+    |> cache_begin_fragment(id)
+  end
+
+  @doc """
+  Decrements fragment depth unconditionally.
   """
   def end_fragment(%__MODULE__{fragment_depth: depth} = state) when depth > 0 do
     %{state | fragment_depth: depth - 1}
   end
 
   def end_fragment(%__MODULE__{} = state), do: state
+
+  @doc """
+  Ends a named fragment: finalizes cache length and clears selective-render membership.
+  """
+  def end_fragment(%__MODULE__{} = state, id) do
+    state
+    |> cache_end_fragment(id)
+    |> maybe_decrement_fragment_depth(id)
+    |> maybe_delete_fragment(id)
+  end
+
+  defp maybe_increment_fragment_depth(%__MODULE__{fragments: nil} = state, _id), do: state
+
+  defp maybe_increment_fragment_depth(%__MODULE__{fragments: fragments} = state, id) do
+    if fragment_member?(fragments, id) do
+      %{state | fragment_depth: state.fragment_depth + 1}
+    else
+      state
+    end
+  end
+
+  defp maybe_decrement_fragment_depth(%__MODULE__{fragments: nil} = state, _id), do: state
+
+  defp maybe_decrement_fragment_depth(%__MODULE__{fragments: fragments} = state, id) do
+    if fragment_member?(fragments, id) do
+      %{state | fragment_depth: max(0, state.fragment_depth - 1)}
+    else
+      state
+    end
+  end
+
+  defp maybe_delete_fragment(%__MODULE__{fragments: nil} = state, _id), do: state
+
+  defp maybe_delete_fragment(%__MODULE__{fragments: fragments} = state, id) do
+    %{state | fragments: delete_fragment_id(fragments, id)}
+  end
+
+  defp fragment_member?(fragments, id) do
+    MapSet.member?(fragments, id) or
+      (is_atom(id) and MapSet.member?(fragments, Atom.to_string(id))) or
+      (is_binary(id) and atom_member?(fragments, id))
+  end
+
+  defp atom_member?(fragments, id) do
+    MapSet.member?(fragments, String.to_existing_atom(id))
+  rescue
+    ArgumentError -> false
+  end
+
+  defp delete_fragment_id(fragments, id) do
+    fragments
+    |> MapSet.delete(id)
+    |> then(fn set ->
+      if is_atom(id), do: MapSet.delete(set, Atom.to_string(id)), else: set
+    end)
+    |> then(fn set ->
+      if is_binary(id) do
+        try do
+          MapSet.delete(set, String.to_existing_atom(id))
+        rescue
+          ArgumentError -> set
+        end
+      else
+        set
+      end
+    end)
+  end
 
   @doc """
   Appends content to the buffer.
@@ -96,25 +174,122 @@ defmodule Phlex.SGML.State do
   Returns the captured buffer content as a binary.
   """
   def capture(%__MODULE__{} = state, fun) when is_function(fun, 1) do
-    new_buffer = []
-    original_buffer = state.buffer
-    original_capturing = state.capturing
-    original_fragments = state.fragments
-
     captured_state = %{
       state
-      | buffer: new_buffer,
+      | buffer: [],
         capturing: true,
         fragments: nil
     }
 
-    try do
-      captured_state = fun.(captured_state)
-      captured_state.buffer
-    after
-      %{state | buffer: original_buffer, capturing: original_capturing, fragments: original_fragments}
-    end
-    |> then(fn buffer -> IO.iodata_to_binary(buffer) end)
+    captured_state
+    |> fun.()
+    |> Map.fetch!(:buffer)
+    |> IO.iodata_to_binary()
+  end
+
+  @doc """
+  Renders a block into an isolated buffer for cache storage.
+
+  Returns `{binary, fragment_map}` where `fragment_map` maps fragment names to
+  `{byte_offset, byte_length, nested_fragment_names}`.
+  """
+  def caching(%__MODULE__{} = state, fun) when is_function(fun, 1) do
+    parent_bytes = IO.iodata_length(state.buffer)
+
+    raised_stack =
+      Enum.map(state.cache_stack, fn entry ->
+        %{entry | frozen_prefix_bytes: entry.frozen_prefix_bytes + parent_bytes}
+      end)
+
+    captured_state = %{
+      state
+      | buffer: [],
+        capturing: true,
+        fragments: nil,
+        cache_stack: [%{map: %{}, frozen_prefix_bytes: 0} | raised_stack]
+    }
+
+    captured_state = fun.(captured_state)
+    buffer = IO.iodata_to_binary(captured_state.buffer)
+    [%{map: fragment_map} | _] = captured_state.cache_stack
+    {buffer, fragment_map}
+  end
+
+  def caching?(%__MODULE__{cache_stack: stack}), do: stack != []
+
+  @doc """
+  Records a fragment range into the current cache context, shifting by buffer size.
+  """
+  def record_fragment(%__MODULE__{cache_stack: []} = state, _name, _offset, _length, _nested),
+    do: state
+
+  def record_fragment(%__MODULE__{} = state, name, offset, length, nested_fragments) do
+    current_bytes = IO.iodata_length(state.buffer)
+
+    new_stack =
+      Enum.map(state.cache_stack, fn entry ->
+        adjusted_offset = offset + entry.frozen_prefix_bytes + current_bytes
+        %{entry | map: Map.put(entry.map, name, {adjusted_offset, length, nested_fragments})}
+      end)
+
+    %{state | cache_stack: new_stack}
+  end
+
+  def record_fragment(%__MODULE__{} = state, name, {offset, length, nested_fragments}) do
+    record_fragment(state, name, offset, length, nested_fragments)
+  end
+
+  defp cache_begin_fragment(%__MODULE__{cache_stack: []} = state, _id), do: state
+
+  defp cache_begin_fragment(%__MODULE__{} = state, id) do
+    current_bytes = IO.iodata_length(state.buffer)
+
+    new_stack =
+      Enum.map(state.cache_stack, fn entry ->
+        offset = entry.frozen_prefix_bytes + current_bytes
+
+        map =
+          entry.map
+          |> add_nested_to_open_fragments(id)
+          |> Map.put(id, {offset, nil, []})
+
+        %{entry | map: map}
+      end)
+
+    %{state | cache_stack: new_stack}
+  end
+
+  defp cache_end_fragment(%__MODULE__{cache_stack: []} = state, _id), do: state
+
+  defp cache_end_fragment(%__MODULE__{} = state, id) do
+    current_bytes = IO.iodata_length(state.buffer)
+
+    {new_stack, _length} =
+      Enum.map_reduce(state.cache_stack, nil, fn entry, shared_length ->
+        case Map.get(entry.map, id) do
+          {offset, nil, nested} ->
+            length = shared_length || current_bytes + entry.frozen_prefix_bytes - offset
+            {%{entry | map: Map.put(entry.map, id, {offset, length, nested})}, length}
+
+          _other ->
+            {entry, shared_length}
+        end
+      end)
+
+    %{state | cache_stack: new_stack}
+  end
+
+  defp add_nested_to_open_fragments(fragment_map, id) do
+    Enum.reduce(fragment_map, %{}, fn
+      {^id, meta}, acc ->
+        Map.put(acc, id, meta)
+
+      {name, {offset, nil, nested}}, acc ->
+        Map.put(acc, name, {offset, nil, nested ++ [id]})
+
+      {name, meta}, acc ->
+        Map.put(acc, name, meta)
+    end)
   end
 
   @doc """

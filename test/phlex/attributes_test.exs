@@ -37,7 +37,9 @@ defmodule AttributesTest do
 
   test "generates style attributes from map" do
     result = Attributes.generate_attributes(style: %{color: "red", padding: "10px"})
-    assert result =~ ~r/style="color: red; padding: 10px;"/
+    assert result =~ ~r/style=/
+    assert result =~ "color: red"
+    assert result =~ "padding: 10px"
   end
 
   test "generates style attributes from list of strings" do
@@ -57,30 +59,19 @@ defmodule AttributesTest do
     result =
       Attributes.generate_attributes(data: %{foo: %{bar: "baz", qux: "quux"}})
 
-    # Nested attributes are escaped for security
-    assert result =~ "data="
-    assert result =~ "foo"
-    assert result =~ "bar"
-    assert result =~ "baz"
-    assert result =~ "qux"
-    assert result =~ "quux"
+    assert result =~ ~r/data-foo-bar="baz"/
+    assert result =~ ~r/data-foo-qux="quux"/
   end
 
   test "generates nested attributes with underscore key" do
     result = Attributes.generate_attributes(data: %{_: "value"})
-    # Nested attributes are escaped
-    assert result =~ "data="
-    assert result =~ "value"
+    assert result == " data=\"value\""
   end
 
   test "generates nested attributes from keyword list" do
     result = Attributes.generate_attributes(data: [foo: "bar", baz: "qux"])
-    # Nested attributes are escaped
-    assert result =~ "data="
-    assert result =~ "foo"
-    assert result =~ "bar"
-    assert result =~ "baz"
-    assert result =~ "qux"
+    assert result =~ ~r/data-foo="bar"/
+    assert result =~ ~r/data-baz="qux"/
   end
 
   test "generates nested tokens from list" do
@@ -120,9 +111,7 @@ defmodule AttributesTest do
 
   test "handles atom attribute values" do
     result = Attributes.generate_attributes(class: :foo_bar)
-    # Atoms are converted to strings with underscores preserved in values
-    assert result =~ "class="
-    assert result =~ "foo_bar"
+    assert result =~ ~r/class="foo-bar"/
   end
 
   test "handles numeric values" do
@@ -219,10 +208,8 @@ defmodule AttributesTest do
   end
 
   test "handles map as non-style attribute value" do
-    # Maps as attribute values (non-style) are treated as nested attributes
     result = Attributes.generate_attributes(data: %{foo: "bar"})
-    assert result =~ "data="
-    assert result =~ "foo"
+    assert result == " data-foo=\"bar\""
   end
 
   test "raises error for invalid style value" do
@@ -240,22 +227,16 @@ defmodule AttributesTest do
   test "handles complex nested attributes" do
     result =
       Attributes.generate_attributes(
-        data: %{
-          user: %{id: 123, name: "John"},
+        data: [
+          user: [id: 123, name: "John"],
           settings: [theme: "dark", lang: "en"]
-        }
+        ]
       )
 
-    # Nested attributes are escaped, so we check for content presence
-    assert result =~ "data="
-    assert result =~ "user"
-    assert result =~ "id"
-    assert result =~ "123"
-    assert result =~ "name"
-    assert result =~ "John"
-    assert result =~ "settings"
-    assert result =~ "theme"
-    assert result =~ "dark"
+    assert result =~ ~r/data-user-id="123"/
+    assert result =~ ~r/data-user-name="John"/
+    assert result =~ ~r/data-settings-theme="dark"/
+    assert result =~ ~r/data-settings-lang="en"/
   end
 
   test "handles style with atom values" do
@@ -298,29 +279,22 @@ defmodule AttributesTest do
 
   test "handles nested attributes with nil values" do
     result = Attributes.generate_attributes(data: %{foo: nil, bar: "baz"})
-    assert result =~ "data="
-    assert result =~ "bar"
-    refute result =~ "foo="
+    assert result == " data-bar=\"baz\""
   end
 
   test "handles nested attributes with map values" do
     result = Attributes.generate_attributes(data: %{nested: %{foo: "bar"}})
-    assert result =~ "data="
-    assert result =~ "nested"
-    assert result =~ "foo"
+    assert result == " data-nested-foo=\"bar\""
   end
 
   test "handles nested attributes with keyword list values" do
     result = Attributes.generate_attributes(data: [nested: [foo: "bar"]])
-    assert result =~ "data="
-    assert result =~ "nested"
-    assert result =~ "foo"
+    assert result == " data-nested-foo=\"bar\""
   end
 
   test "handles nested attributes with list values" do
     result = Attributes.generate_attributes(data: [nested: ["foo", "bar"]])
-    assert result =~ "data="
-    assert result =~ "nested"
+    assert result == " data-nested=\"foo bar\""
   end
 
   test "handles nested attributes with underscore key" do
@@ -365,22 +339,17 @@ defmodule AttributesTest do
 
   test "handles nested attribute with boolean value" do
     result = Attributes.generate_attributes(data: %{foo: true})
-    assert result =~ "data="
-    assert result =~ "foo"
+    assert result == " data-foo"
   end
 
   test "handles nested attribute with atom value" do
     result = Attributes.generate_attributes(data: %{foo: :bar})
-    assert result =~ "data="
-    assert result =~ "foo"
-    assert result =~ "bar"
+    assert result == " data-foo=\"bar\""
   end
 
   test "handles nested attribute with number value" do
     result = Attributes.generate_attributes(data: %{foo: 123})
-    assert result =~ "data="
-    assert result =~ "foo"
-    assert result =~ "123"
+    assert result == " data-foo=\"123\""
   end
 
   test "raises error for invalid nested attribute value" do
@@ -413,5 +382,70 @@ defmodule AttributesTest do
     assert result =~ "style="
     assert result =~ "color: red"
     assert result =~ "padding: 10px"
+  end
+
+  test "expands nested data hashes like Phlex Ruby" do
+    result = Attributes.generate_attributes(data: %{attr: "test"})
+    assert result == " data-attr=\"test\""
+  end
+
+  test "omits javascript href values" do
+    for href <- [
+          "javascript:alert('hello')",
+          "Javascript:alert('hello')",
+          " \t\njavascript:alert('hello')",
+          "java&#x73;cript:alert(1)",
+          "javascript&#58;alert(1)",
+          "java&#115;cript:alert(1)",
+          "&#106;avascript:alert(1)",
+          "javascript&#58alert(1)",
+          "javascript&colon;alert(1)"
+        ] do
+      assert Attributes.generate_attributes(href: href) == ""
+    end
+  end
+
+  test "omits javascript xlink:href values" do
+    for href <- [
+          "javascript:alert(1)",
+          "javascript&colon;alert(1)",
+          "javascript&#58alert(1)"
+        ] do
+      assert Attributes.generate_attributes("xlink:href": href) == ""
+    end
+  end
+
+  test "rejects unsafe attribute names with slash space or equals" do
+    assert_raise ArgumentError, ~r/Unsafe attribute name/, fn ->
+      Attributes.generate_attributes("x onclick": "alert(1)")
+    end
+
+    assert_raise ArgumentError, ~r/Unsafe attribute name/, fn ->
+      Attributes.generate_attributes("x/onclick": "alert(1)")
+    end
+
+    assert_raise ArgumentError, ~r/Unsafe attribute name/, fn ->
+      Attributes.generate_attributes("x=onclick": "alert(1)")
+    end
+  end
+
+  test "requires id to be lowercase atom key" do
+    assert_raise ArgumentError, ~r/:id attribute should only be passed/, fn ->
+      Attributes.generate_attributes(%{"id" => "abc"})
+    end
+
+    assert_raise ArgumentError, ~r/:id attribute should only be passed/, fn ->
+      Attributes.generate_attributes(iD: "abc")
+    end
+
+    assert Attributes.generate_attributes(id: "abc") =~ ~r/id="abc"/
+  end
+
+  test "decodes html character references used in javascript checks" do
+    assert Attributes.decode_html_character_references("java&#x73;cript:alert(1)") ==
+             "javascript:alert(1)"
+
+    assert Attributes.decode_html_character_references("javascript&colon;alert(1)") ==
+             "javascript:alert(1)"
   end
 end

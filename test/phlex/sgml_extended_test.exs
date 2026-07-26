@@ -148,14 +148,12 @@ defmodule Phlex.SGMLExtendedTest do
       assert result == ""
     end
 
-    test "handles Protocol.UndefinedError by converting to string" do
+    test "rejects values that are not SafeObject" do
       state = State.new()
-      # Create something that doesn't implement SafeObject but can be converted to string
-      # Use a number which doesn't implement SafeObject but implements String.Chars
-      state = Phlex.SGML.append_raw(state, 12_345)
-      result = IO.iodata_to_binary(state.buffer)
-      # Number should be converted to string
-      assert result == "12345"
+
+      assert_raise ArgumentError, ~r/unsafe object/, fn ->
+        Phlex.SGML.append_raw(state, 12_345)
+      end
     end
   end
 

@@ -427,10 +427,48 @@ defmodule Phlex.HTML do
       end)
   """
   def tag(tag_name, attrs, state, content_fun \\ nil) do
+    validated_name = validate_dynamic_tag_name!(tag_name)
+
     if content_fun do
-      render_element(tag_name, attrs, state, content_fun)
+      render_element(validated_name, attrs, state, content_fun)
     else
-      render_void_element(tag_name, attrs, state)
+      if void_element_name?(validated_name) do
+        render_void_element(validated_name, attrs, state)
+      else
+        render_element(validated_name, attrs, state, nil)
+      end
     end
+  end
+
+  defp validate_dynamic_tag_name!(tag_name) do
+    normalized = normalize_tag_name(tag_name)
+
+    registered? = MapSet.member?(registered_element_names(), normalized)
+
+    custom? =
+      String.contains?(normalized, "-") and Regex.match?(~r/\A[a-z0-9-]+\z/, normalized)
+
+    unless registered? or custom? do
+      raise ArgumentError, "Invalid HTML tag: #{inspect(tag_name)}"
+    end
+
+    normalized
+  end
+
+  defp void_element_name?(name) when is_binary(name) do
+    MapSet.member?(void_element_names(), name)
+  end
+
+  defp registered_element_names do
+    @standard_elements
+    |> Kernel.++(@void_elements)
+    |> Enum.map(&normalize_tag_name/1)
+    |> MapSet.new()
+  end
+
+  defp void_element_names do
+    @void_elements
+    |> Enum.map(&normalize_tag_name/1)
+    |> MapSet.new()
   end
 end

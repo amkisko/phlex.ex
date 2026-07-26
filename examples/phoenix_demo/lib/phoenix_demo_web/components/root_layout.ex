@@ -258,6 +258,6 @@ defmodule PhoenixDemoWeb.Components.RootLayout do
       })();
     </script>
     """
-    Phlex.SGML.append_raw(state, script_content)
+    Phlex.SGML.unsafe_raw(state, script_content)
   end
 end

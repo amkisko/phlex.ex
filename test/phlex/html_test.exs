@@ -2,6 +2,8 @@ defmodule Phlex.HTMLTest do
   use ExUnit.Case
   doctest Phlex.HTML
 
+  alias Phlex.SGML.State
+
   defmodule TestComponent do
     use Phlex.HTML
 
@@ -567,5 +569,29 @@ defmodule Phlex.HTMLTest do
     result = BinaryTagComponent.render()
     assert result =~ "<custom-tag"
     assert result =~ "</custom-tag>"
+  end
+
+  test "rejects unsafe dynamic tag names" do
+    state = State.new()
+
+    assert_raise ArgumentError, ~r/Invalid HTML tag/, fn ->
+      Phlex.HTML.tag(:"x-widget onclick=alert(1)", [], state)
+    end
+
+    assert_raise ArgumentError, ~r/Invalid HTML tag/, fn ->
+      Phlex.HTML.tag(:notvalid, [], state)
+    end
+  end
+
+  test "omits javascript href on anchors" do
+    defmodule SafeAnchorComponent do
+      use Phlex.HTML
+
+      def view_template(_assigns, state) do
+        a(state, [href: "javascript:alert(1)"], "x")
+      end
+    end
+
+    assert SafeAnchorComponent.render() == "<a>x</a>"
   end
 end

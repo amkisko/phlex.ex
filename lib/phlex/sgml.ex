@@ -26,7 +26,7 @@ defmodule Phlex.SGML do
     quote do
       @behaviour Phlex.SGML
 
-      import Phlex.SGML
+      import Phlex.SGML, except: [render: 2, render: 3]
       import Phlex.Helpers
       import Phlex.HTML, only: []
 
@@ -39,35 +39,93 @@ defmodule Phlex.SGML do
 
       - `:context` - User context map (default: `%{}`)
       - `:fragments` - MapSet of fragment names to render (default: `nil`)
+      - `:content_block` - optional content function `(state -> state)`
 
-      ## Examples
-
-          MyComponent.render()
-          MyComponent.render(context: %{user: user})
+      Nested rendering into an existing state uses `render/2` or `render/3` with a
+      `%Phlex.SGML.State{}` as the first argument.
       """
-      def render(assigns \\ %{}, opts \\ []) do
-        component = struct(__MODULE__, Map.to_list(assigns))
-        component = Map.put(component, :_assigns, assigns)
+      def render(assigns \\ %{}, opts \\ [])
+
+      def render(%Phlex.SGML.State{} = state, renderable) do
+        Phlex.SGML.render(state, renderable)
+      end
+
+      def render(%Phlex.SGML.State{} = state, renderable, opts) when is_list(opts) do
+        Phlex.SGML.render(state, renderable, opts)
+      end
+
+      def render(assigns, opts) when is_map(assigns) or is_list(assigns) do
+        component = build_component(assigns)
         content_block = Keyword.get(opts, :content_block)
 
         state =
           State.new(
-            user_context: Keyword.get(opts, :context, %{}),
-            fragments: Keyword.get(opts, :fragments),
+            user_context:
+              Keyword.get(opts, :context, %{})
+              |> Map.put(:phlex_cache_class, __MODULE__),
+            fragments: Phlex.SGML.normalize_fragments(Keyword.get(opts, :fragments)),
             content_block: content_block
           )
 
-        state = internal_call(component, state, nil)
+        state = __phlex_call__(component, state, opts)
         state = State.flush(state)
         final_output = [state.output_buffer, state.buffer]
         IO.iodata_to_binary(final_output)
       end
 
-      defoverridable render: 1, render: 2
+      defoverridable render: 1, render: 2, render: 3
 
-      defp internal_call(component, state, _parent) do
-        view_template(component, state)
+      @doc false
+      def __phlex_call__(component, state, opts \\ []) do
+        previous = Process.get(:phlex_rendering_component)
+        Process.put(:phlex_rendering_component, __MODULE__)
+
+        try do
+          state = put_content_block(state, opts)
+
+          if render?(component, state) do
+            component
+            |> before_template(state)
+            |> then(fn state ->
+              around_template(component, state, fn state ->
+                view_template(component, state)
+              end)
+            end)
+            |> then(&after_template(component, &1))
+          else
+            state
+          end
+        after
+          Process.put(:phlex_rendering_component, previous)
+        end
       end
+
+      defp build_component(assigns) when is_map(assigns) do
+        __MODULE__
+        |> struct(Map.to_list(assigns))
+        |> Map.put(:_assigns, assigns)
+      end
+
+      defp build_component(assigns) when is_list(assigns) do
+        build_component(Map.new(assigns))
+      end
+
+      defp put_content_block(state, opts) do
+        case Keyword.fetch(opts, :content_block) do
+          {:ok, content_block} -> %{state | content_block: content_block}
+          :error -> state
+        end
+      end
+
+      def before_template(_component, state), do: state
+      def after_template(_component, state), do: state
+      def around_template(_component, state, fun) when is_function(fun, 1), do: fun.(state)
+      def render?(_component, _state), do: true
+
+      defoverridable before_template: 2,
+                     after_template: 2,
+                     around_template: 3,
+                     render?: 2
 
       defp view_template(_component, state), do: state
 
@@ -75,13 +133,6 @@ defmodule Phlex.SGML do
 
       @doc """
       Returns the user context map.
-
-      ## Example
-
-          def view_template(_assigns, state) do
-            user = context(state)[:user]
-            # ...
-          end
       """
       def context(%Phlex.SGML.State{} = state) do
         state.user_context
@@ -95,30 +146,6 @@ defmodule Phlex.SGML do
 
       @doc """
       Yields content block if one was provided.
-
-      Similar to phlex-ruby's block support, this allows components to accept
-      and render content blocks.
-
-      ## Examples
-
-          defmodule MyComponent do
-            use Phlex.HTML
-
-            def render_template(assigns, state) do
-              state
-              |> div([], fn state ->
-                if state.content_block do
-                  yield_content(state)
-                else
-                  append_text(state, "Default content")
-                end
-              end)
-            end
-          end
-
-          MyComponent.render(%{}, content_block: fn state ->
-            Phlex.SGML.append_text(state, "Custom content")
-          end)
       """
       def yield_content(%Phlex.SGML.State{content_block: nil} = state), do: state
 
@@ -127,7 +154,6 @@ defmodule Phlex.SGML do
       end
 
       def yield_content(%Phlex.SGML.State{content_block: block} = state) when is_function(block, 2) do
-        # Arity 2 block receives (state, component)
         component = Map.get(state, :_component)
         block.(state, component)
       end
@@ -175,71 +201,64 @@ defmodule Phlex.SGML do
   end
 
   @doc """
-  Appends raw (unescaped) content to the buffer.
-
-  ⚠️ Warning: Only use with trusted content to avoid XSS vulnerabilities.
-
-  Accepts:
-  - Binary strings (raw HTML)
-  - SafeObject implementations (SafeValue, etc.)
-  - Other types (converted to string)
-
-  For explicit unsafe content, use `unsafe_raw/2` instead.
+  Output plain text (HTML-escaped). Matches Phlex Ruby `plain`.
   """
-  def append_raw(%Phlex.SGML.State{} = state, %Phlex.SGML.SafeValue{} = safe_object) do
-    if State.should_render?(state) do
-      content = SafeObject.to_safe_string(safe_object)
-      State.append_buffer(state, content)
-    else
-      state
-    end
-  end
+  def plain(state, content), do: append_text(state, content)
 
-  def append_raw(%Phlex.SGML.State{} = state, content) when is_binary(content) do
-    if State.should_render?(state) do
-      State.append_buffer(state, content)
-    else
-      state
-    end
-  end
+  @doc """
+  Appends a SafeObject without escaping. Matches Phlex Ruby `raw`.
 
-  def append_raw(%Phlex.SGML.State{} = state, content) do
-    safe_string = SafeObject.to_safe_string(content)
-    append_raw(state, safe_string)
-  rescue
-    Protocol.UndefinedError -> append_raw(state, to_string(content))
+  Pass binaries through `safe/1`, or use `unsafe_raw/2` for an explicit opt-in.
+  """
+  def append_raw(state, content), do: raw(state, content)
+
+  def raw(%Phlex.SGML.State{} = state, content) when content in [nil, ""], do: state
+
+  def raw(%Phlex.SGML.State{} = state, content) do
+    case safe_object_string(content) do
+      {:ok, safe_string} ->
+        if State.should_render?(state) do
+          State.append_buffer(state, safe_string)
+        else
+          state
+        end
+
+      :error ->
+        raise ArgumentError,
+              "You passed an unsafe object to `raw`. Wrap trusted HTML with Phlex.SGML.safe/1."
+    end
   end
 
   @doc """
-  Appends raw (unescaped) content to the buffer, explicitly marking it as potentially unsafe.
+  Appends raw HTML without a SafeObject wrapper.
 
-  ⚠️ Warning: This function bypasses HTML escaping. Only use with trusted content
-  to avoid XSS vulnerabilities. The name `unsafe_raw` is intentional to make the
-  risk explicit.
-
-  This is similar to phlex-ruby's `raw` method, but in phlex.ex we use `unsafe_raw`
-  to make the safety implications clear.
-
-  ## Examples
-
-      # Safe: rendering your own component output
-      state
-      |> unsafe_raw(MyComponent.render())
-
-      # Safe: using safe() wrapper
-      state
-      |> unsafe_raw(Phlex.SGML.safe("<div>Hello</div>"))
-
-      # ⚠️ Unsafe: user-provided content (don't do this!)
-      # unsafe_raw(state, user_input)  # XSS vulnerability!
-
-  Accepts:
-  - Binary strings (raw HTML)
-  - SafeObject implementations (SafeValue, etc.)
-  - Other types (converted to string)
+  Prefer `raw/2` with `safe/1` for trusted markup.
   """
+  def unsafe_raw(%Phlex.SGML.State{} = state, nil), do: state
+
+  def unsafe_raw(%Phlex.SGML.State{} = state, content) when is_binary(content) do
+    if State.should_render?(state) do
+      State.append_buffer(state, content)
+    else
+      state
+    end
+  end
+
   def unsafe_raw(%Phlex.SGML.State{} = state, content) do
-    append_raw(state, content)
+    case safe_object_string(content) do
+      {:ok, safe_string} -> unsafe_raw(state, safe_string)
+      :error -> unsafe_raw(state, to_string(content))
+    end
+  end
+
+  defp safe_object_string(%SafeValue{} = safe_value) do
+    {:ok, SafeObject.to_safe_string(safe_value)}
+  end
+
+  defp safe_object_string(content) do
+    {:ok, SafeObject.to_safe_string(content)}
+  rescue
+    Protocol.UndefinedError -> :error
   end
 
   @doc """
@@ -306,15 +325,88 @@ defmodule Phlex.SGML do
   end
 
   @doc """
-  Renders another component.
+  Renders another component into the current state.
+
+  Prefer `render/2` or `render/3` for the full polymorphic Phlex Ruby surface.
   """
   def render_component(%Phlex.SGML.State{} = state, component_module, assigns \\ %{}) do
-    if function_exported?(component_module, :render, 2) do
-      rendered = component_module.render(assigns, context: state.user_context, fragments: state.fragments)
-      State.append_buffer(state, rendered)
+    render(state, component_module, assigns: assigns)
+  end
+
+  @doc """
+  Polymorphic nested render aligned with Phlex Ruby `render`.
+
+  Accepts component modules or structs, binaries (via `plain/2`), lists of
+  renderables, arity-1 functions, or `nil` with an optional `:content_block`.
+  """
+  def render(%Phlex.SGML.State{} = state, renderable), do: render(state, renderable, [])
+
+  def render(%Phlex.SGML.State{} = state, %mod{} = component, opts)
+      when is_atom(mod) and is_list(opts) do
+    call_component(mod, component, state, opts)
+  end
+
+  def render(%Phlex.SGML.State{} = state, renderable, opts)
+      when is_atom(renderable) and is_list(opts) do
+    assigns = Keyword.get(opts, :assigns, %{})
+    component = build_renderable_component(renderable, assigns)
+    call_component(renderable, component, state, opts)
+  end
+
+  def render(%Phlex.SGML.State{} = state, renderables, opts)
+      when is_list(renderables) and is_list(opts) do
+    if Keyword.keyword?(renderables) do
+      raise ArgumentError, "You can't render a #{inspect(renderables)}."
     else
-      raise ArgumentError, "Component #{inspect(component_module)} does not implement render/2"
+      Enum.reduce(renderables, state, fn item, acc -> render(acc, item, opts) end)
     end
+  end
+
+  def render(%Phlex.SGML.State{} = state, fun, _opts) when is_function(fun, 1) do
+    fun.(state)
+  end
+
+  def render(%Phlex.SGML.State{} = state, content, _opts) when is_binary(content) do
+    plain(state, content)
+  end
+
+  def render(%Phlex.SGML.State{} = state, nil, opts) when is_list(opts) do
+    case Keyword.get(opts, :content_block) do
+      fun when is_function(fun, 1) -> fun.(state)
+      nil -> state
+      other -> raise ArgumentError, "You can't render a #{inspect(other)}."
+    end
+  end
+
+  def render(%Phlex.SGML.State{} = _state, renderable, _opts) do
+    raise ArgumentError, "You can't render a #{inspect(renderable)}."
+  end
+
+  defp call_component(mod, component, state, opts) do
+    cond do
+      function_exported?(mod, :__phlex_call__, 3) ->
+        mod.__phlex_call__(component, state, opts)
+
+      function_exported?(mod, :__phlex_call__, 2) ->
+        mod.__phlex_call__(component, state)
+
+      true ->
+        raise ArgumentError, "You can't render a #{inspect(mod)}."
+    end
+  end
+
+  defp build_renderable_component(mod, assigns) when is_map(assigns) do
+    if function_exported?(mod, :__struct__, 0) do
+      mod
+      |> struct(Map.to_list(assigns))
+      |> Map.put(:_assigns, assigns)
+    else
+      raise ArgumentError, "You can't render a #{inspect(mod)}."
+    end
+  end
+
+  defp build_renderable_component(mod, assigns) when is_list(assigns) do
+    build_renderable_component(mod, Map.new(assigns))
   end
 
   @doc """
@@ -348,36 +440,127 @@ defmodule Phlex.SGML do
   @doc """
   Caches a block of content based on a cache key.
 
-  The cache key should uniquely identify the content being cached.
-  This is useful for expensive computations or database queries.
+  Uses a process-local FIFO cache store by default. Keys include the calling
+  module context when available via `state.user_context[:phlex_cache_class]`.
 
-  ## Example
-
-      def view_template(assigns, state) do
-        state
-        |> div([], fn state ->
-          Enum.reduce(assigns.products, state, fn product, state ->
-            cache(state, [product.id, product.updated_at], fn state ->
-              product_card(state, product)
-            end)
-          end)
-        end)
-      end
-
-  Note: This requires a cache store to be configured. See `low_level_cache/3` for more control.
+  Calling `cache/2` with only a function uses an empty key fragment, matching
+  Ruby `cache { ... }`.
   """
-  def cache(%Phlex.SGML.State{} = state, _cache_key, fun) when is_function(fun, 1) do
-    fun.(state)
+  def cache(%Phlex.SGML.State{} = state, fun) when is_function(fun, 1) do
+    cache(state, [], fun)
+  end
+
+  def cache(%Phlex.SGML.State{} = state, cache_key, fun) when is_function(fun, 1) do
+    full_key = [
+      Phlex.deployed_at(),
+      Map.get(state.user_context, :phlex_cache_class),
+      cache_key
+    ]
+
+    low_level_cache(state, full_key, default_cache_store(), fun)
   end
 
   @doc """
-  Low-level cache function that requires a cache store.
+  Caches a block with an explicit cache key and store.
 
-  This gives you full control over the cache key and cache store.
+  `cache_store` may be a `Phlex.FIFOCacheStore` or any module/value accepted by
+  `fetch_from_cache_store/3`. When omitted-style atoms are passed, the process
+  default store is used.
   """
-  def low_level_cache(%Phlex.SGML.State{} = state, _cache_key, _cache_store, fun)
+  def low_level_cache(%Phlex.SGML.State{} = state, cache_key, fun)
       when is_function(fun, 1) do
-    fun.(state)
+    low_level_cache(state, cache_key, default_cache_store(), fun)
+  end
+
+  def low_level_cache(%Phlex.SGML.State{} = state, cache_key, cache_store, fun)
+      when is_function(fun, 1) do
+    store = resolve_cache_store(cache_store)
+
+    {cached_payload, updated_store} =
+      fetch_from_cache_store(store, cache_key, fn ->
+        State.caching(state, fun)
+      end)
+
+    put_resolved_cache_store(cache_store, updated_store)
+    apply_cached_payload(state, cached_payload)
+  end
+
+  defp default_cache_store do
+    case Process.get(:phlex_component_cache_store) do
+      %Phlex.FIFOCacheStore{} = store ->
+        store
+
+      nil ->
+        store = Phlex.FIFOCacheStore.new(max_bytesize: 2_000_000)
+        Process.put(:phlex_component_cache_store, store)
+        store
+    end
+  end
+
+  defp resolve_cache_store(%Phlex.FIFOCacheStore{} = store), do: store
+  defp resolve_cache_store(_other), do: default_cache_store()
+
+  defp put_resolved_cache_store(%Phlex.FIFOCacheStore{}, updated_store) do
+    Process.put(:phlex_component_cache_store, updated_store)
+  end
+
+  defp put_resolved_cache_store(_other, updated_store) do
+    Process.put(:phlex_component_cache_store, updated_store)
+  end
+
+  defp fetch_from_cache_store(%Phlex.FIFOCacheStore{} = store, cache_key, fun) do
+    Phlex.FIFOCacheStore.fetch(store, cache_key, fun)
+  end
+
+  defp apply_cached_payload(state, {cached_buffer, fragment_map})
+       when is_binary(cached_buffer) and is_map(fragment_map) do
+    ordered_fragments =
+      Enum.sort_by(fragment_map, fn {_name, {offset, _length, _nested}} -> offset end)
+
+    if State.should_render?(state) do
+      state =
+        Enum.reduce(ordered_fragments, state, fn {name, {offset, length, nested}}, acc ->
+          State.record_fragment(acc, name, offset, length, nested)
+        end)
+
+      State.append_buffer(state, cached_buffer)
+    else
+      Enum.reduce(ordered_fragments, state, fn {fragment_name, {offset, length, nested_fragments}}, acc ->
+        if selective_fragment_match?(acc.fragments, fragment_name) do
+          updated_fragments =
+            acc.fragments
+            |> MapSet.delete(fragment_name)
+            |> then(fn set ->
+              Enum.reduce(nested_fragments, set, &MapSet.delete(&2, &1))
+            end)
+
+          slice = binary_part(cached_buffer, offset, length)
+
+          acc
+          |> Map.put(:fragments, updated_fragments)
+          |> State.append_buffer(slice)
+        else
+          acc
+        end
+      end)
+    end
+  end
+
+  defp apply_cached_payload(state, cached_buffer) when is_binary(cached_buffer) do
+    State.append_buffer(state, cached_buffer)
+  end
+
+  defp selective_fragment_match?(nil, _name), do: false
+
+  defp selective_fragment_match?(fragments, name) do
+    MapSet.member?(fragments, name) or
+      (is_atom(name) and MapSet.member?(fragments, Atom.to_string(name))) or
+      (is_binary(name) and
+         try do
+           MapSet.member?(fragments, String.to_existing_atom(name))
+         rescue
+           ArgumentError -> false
+         end)
   end
 
   @doc """
@@ -408,55 +591,10 @@ defmodule Phlex.SGML do
       MyComponent.render(fragments: MapSet.new(["content"]))
   """
   def fragment(%Phlex.SGML.State{} = state, fragment_id, fun) when is_function(fun, 1) do
-    fragment_id_atom =
-      cond do
-        is_binary(fragment_id) ->
-          try do
-            String.to_existing_atom(fragment_id)
-          rescue
-            ArgumentError -> String.to_atom(fragment_id)
-          end
-
-        is_atom(fragment_id) ->
-          fragment_id
-
-        true ->
-          fragment_id
-      end
-
-    should_increment_depth =
-      case state.fragments do
-        nil ->
-          true
-
-        fragments ->
-          if MapSet.size(fragments) == 0 do
-            false
-          else
-            MapSet.member?(fragments, fragment_id_atom) or
-              (is_binary(fragment_id) and MapSet.member?(fragments, fragment_id))
-          end
-      end
-
-    if should_increment_depth do
-      new_fragment_depth = state.fragment_depth + 1
-      state = %{state | fragment_depth: new_fragment_depth}
-      state = fun.(state)
-      final_fragment_depth = max(0, state.fragment_depth - 1)
-
-      new_fragments =
-        if state.fragments do
-          updated = MapSet.delete(state.fragments, fragment_id_atom)
-          if is_binary(fragment_id), do: MapSet.delete(updated, fragment_id), else: updated
-          updated
-        else
-          state.fragments
-        end
-
-      %{state | fragment_depth: final_fragment_depth, fragments: new_fragments}
-    else
-      state
-    end
+    state
+    |> State.begin_fragment(fragment_id)
+    |> then(fun)
+    |> State.end_fragment(fragment_id)
   end
 
   @doc """
@@ -475,4 +613,10 @@ defmodule Phlex.SGML do
   """
   def rendering?(%Phlex.SGML.State{} = _state), do: true
   def rendering?(_), do: false
+
+  @doc false
+  def normalize_fragments(nil), do: nil
+  def normalize_fragments(%MapSet{} = fragments), do: fragments
+  def normalize_fragments(fragments) when is_list(fragments), do: MapSet.new(fragments)
+  def normalize_fragments(fragments), do: MapSet.new(List.wrap(fragments))
 end

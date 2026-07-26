@@ -70,7 +70,8 @@ defmodule Phlex do
   See the documentation for each module for more details.
   """
 
-  @version "0.1.0"
+  @version "0.3.0"
+  @deployed_at System.system_time(:millisecond)
 
   @doc """
   Returns the version of Phlex.
@@ -78,9 +79,14 @@ defmodule Phlex do
   ## Examples
 
       Phlex.version()
-      # => "0.1.0"
+      # => "0.3.0"
   """
   def version, do: @version
+
+  @doc """
+  Monotonic deploy marker used in fragment cache keys.
+  """
+  def deployed_at, do: @deployed_at
 
   @doc """
   Fetches cached attributes or computes them if not cached.
@@ -92,8 +98,11 @@ defmodule Phlex do
   ## Examples
 
       Phlex.fetch_attributes([class: "card", id: "card-1"], fn ->
-        Phlex.SGML.Attributes.generate_attributes([class: "card", id: "card-1"])
+        " class=\\"card\\" id=\\"card-1\\""
       end)
+
+  Prefer `Phlex.SGML.Attributes.generate_attributes/1`, which already uses this cache
+  when the attribute buffer is empty.
 
   ## Arguments
 

@@ -6,7 +6,6 @@ defmodule Phlex.CacheTest do
     use Phlex.HTML
 
     def view_template(_assigns, state) do
-      # Use explicit state passing (cache and other SGML functions still need it)
       div(state, [], fn state ->
         cache(state, [:test_key], fn state ->
           h1(state, [], "Cached Content")
@@ -15,10 +14,34 @@ defmodule Phlex.CacheTest do
     end
   end
 
+  defmodule CountingCacheComponent do
+    use Phlex.HTML
+
+    def view_template(assigns, state) do
+      original_assigns = Map.fetch!(assigns, :_assigns)
+
+      cache(state, [:counting, Map.fetch!(original_assigns, :token)], fn state ->
+        send(Map.fetch!(original_assigns, :test_pid), :cache_miss)
+        h1(state, [], "Cached Content")
+      end)
+    end
+  end
+
   test "cache function executes block" do
     result = TestComponent.render()
     assert result =~ "Cached Content"
     assert result =~ "<h1>"
+  end
+
+  test "cache reuses stored markup on second render" do
+    Process.delete(:phlex_component_cache_store)
+    test_pid = self()
+
+    assert CountingCacheComponent.render(%{token: "a", test_pid: test_pid}) =~ "Cached Content"
+    assert_received :cache_miss
+
+    assert CountingCacheComponent.render(%{token: "a", test_pid: test_pid}) =~ "Cached Content"
+    refute_received :cache_miss
   end
 
   test "capture function captures output" do

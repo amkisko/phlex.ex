@@ -152,11 +152,12 @@ defmodule PageComponent do
           Phlex.SGML.append_text(state, "Phlex Example with StyleCapsule")
         end)
         |> style([], fn state ->
-          Phlex.SGML.append_raw(state, page_styles)
-          Phlex.SGML.append_raw(state, "\n")
-          Phlex.SGML.append_raw(state, card_styles)
-          Phlex.SGML.append_raw(state, "\n")
-          Phlex.SGML.append_raw(state, icon_styles)
+          state
+          |> Phlex.SGML.unsafe_raw(page_styles)
+          |> Phlex.SGML.unsafe_raw("\n")
+          |> Phlex.SGML.unsafe_raw(card_styles)
+          |> Phlex.SGML.unsafe_raw("\n")
+          |> Phlex.SGML.unsafe_raw(icon_styles)
         end)
       end)
       |> body([], fn state ->
@@ -169,7 +170,10 @@ defmodule PageComponent do
         end)
         |> main([class: "main"], fn state ->
           state
-          |> CardComponent.render(%{title: "Hello", content: "This is a card component with scoped CSS!"})
+          |> Phlex.SGML.render_component(CardComponent, %{
+            title: "Hello",
+            content: "This is a card component with scoped CSS!"
+          })
           |> div([class: "icon-wrapper"], fn state ->
             Phlex.SGML.render_component(state, IconComponent, %{})
           end)

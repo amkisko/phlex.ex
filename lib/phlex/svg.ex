@@ -164,11 +164,27 @@ defmodule Phlex.SVG do
       tag(:path, [d: "M 10 10 L 20 20"], state)
   """
   def tag(tag_name, attrs, state, content_fun \\ nil) do
-    if content_fun do
-      render_element(tag_name, attrs, state, content_fun)
-    else
-      render_element(tag_name, attrs, state, nil)
+    validated_name = validate_dynamic_tag_name!(tag_name)
+    render_element(validated_name, attrs, state, content_fun)
+  end
+
+  defp validate_dynamic_tag_name!(tag_name) do
+    normalized = normalize_tag_name(tag_name)
+
+    registered? =
+      @svg_elements
+      |> Enum.map(&normalize_tag_name/1)
+      |> MapSet.new()
+      |> MapSet.member?(normalized)
+
+    custom? =
+      String.contains?(normalized, "-") and Regex.match?(~r/\A[a-z0-9-]+\z/, normalized)
+
+    unless registered? or custom? do
+      raise ArgumentError, "Invalid SVG tag: #{inspect(tag_name)}"
     end
+
+    normalized
   end
 
   @doc """

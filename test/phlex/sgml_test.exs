@@ -84,19 +84,33 @@ defmodule Phlex.SGMLTest do
     assert result == ""
   end
 
-  test "append_raw with binary" do
+  test "append_raw accepts safe values only" do
     state = State.new()
-    state = Phlex.SGML.append_raw(state, "<script>alert('xss')</script>")
+    state = Phlex.SGML.append_raw(state, Phlex.SGML.safe("<strong>ok</strong>"))
     result = IO.iodata_to_binary(state.buffer)
-    assert result == "<script>alert('xss')</script>"
-    refute result =~ "&lt;"
+    assert result == "<strong>ok</strong>"
   end
 
-  test "append_raw with other type converts to string" do
+  test "append_raw rejects unsafe binaries" do
     state = State.new()
-    state = Phlex.SGML.append_raw(state, 123)
+
+    assert_raise ArgumentError, ~r/unsafe object/, fn ->
+      Phlex.SGML.append_raw(state, "<script>alert('xss')</script>")
+    end
+  end
+
+  test "unsafe_raw accepts binaries" do
+    state = State.new()
+    state = Phlex.SGML.unsafe_raw(state, "<script>alert('xss')</script>")
     result = IO.iodata_to_binary(state.buffer)
-    assert result == "123"
+    assert result == "<script>alert('xss')</script>"
+  end
+
+  test "plain escapes text like append_text" do
+    state = State.new()
+    state = Phlex.SGML.plain(state, "<b>")
+    result = IO.iodata_to_binary(state.buffer)
+    assert result == "&lt;b&gt;"
   end
 
   test "render_component renders a component" do
@@ -117,7 +131,7 @@ defmodule Phlex.SGMLTest do
   test "render_component raises error for non-existent component" do
     state = State.new()
 
-    assert_raise ArgumentError, ~r/does not implement render\/2/, fn ->
+    assert_raise ArgumentError, ~r/You can't render/, fn ->
       Phlex.SGML.render_component(state, NonExistentModule, %{})
     end
   end
@@ -300,16 +314,21 @@ defmodule Phlex.SGMLTest do
     assert result == "false"
   end
 
-  test "append_raw with empty string" do
+  test "append_raw with empty string is a no-op" do
     state = State.new()
     state = Phlex.SGML.append_raw(state, "")
     result = IO.iodata_to_binary(state.buffer)
     assert result == ""
   end
 
-  test "append_raw with HTML content" do
+  test "raw with HTML content requires safe wrapper" do
     state = State.new()
-    state = Phlex.SGML.append_raw(state, "<script>alert('test')</script>")
+
+    assert_raise ArgumentError, ~r/unsafe object/, fn ->
+      Phlex.SGML.raw(state, "<script>alert('test')</script>")
+    end
+
+    state = Phlex.SGML.raw(state, Phlex.SGML.safe("<script>alert('test')</script>"))
     result = IO.iodata_to_binary(state.buffer)
     assert result == "<script>alert('test')</script>"
   end

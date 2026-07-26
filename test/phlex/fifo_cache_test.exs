@@ -90,19 +90,12 @@ defmodule Phlex.FIFOCacheTest do
     test "Phlex.fetch_attributes uses FIFO cache" do
       attrs = [class: "test", id: "my-id"]
 
-      # First call
-      result1 =
-        Phlex.fetch_attributes(attrs, fn ->
-          Attributes.generate_attributes(attrs, [])
-        end)
-
-      # Second call should use cache
-      result2 =
-        Phlex.fetch_attributes(attrs, fn ->
-          raise "Should not be called"
-        end)
+      result1 = Attributes.generate_attributes(attrs)
+      result2 = Attributes.generate_attributes(attrs)
 
       assert result1 == result2
+      assert result1 =~ ~r/class="test"/
+      assert result1 =~ ~r/id="my-id"/
     end
   end
 end

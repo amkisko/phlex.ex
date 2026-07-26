@@ -177,13 +177,13 @@ defmodule PhoenixDemoWeb.Components.PageGallery do
       |> div([class: "component-grid"], fn state ->
         state
         |> render_demo_item("Headings", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.HeadingDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.HeadingDemo.render())
         end)
         |> render_demo_item("Text Formatting", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.TextFormattingDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.TextFormattingDemo.render())
         end)
         |> render_demo_item("Code & Pre", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.CodeDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.CodeDemo.render())
         end)
       end)
     end)
@@ -196,13 +196,13 @@ defmodule PhoenixDemoWeb.Components.PageGallery do
       |> div([class: "component-grid"], fn state ->
         state
         |> render_demo_item("Unordered List", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.ListDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.ListDemo.render())
         end)
         |> render_demo_item("Ordered List", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.OrderedListDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.OrderedListDemo.render())
         end)
         |> render_demo_item("Definition List", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.DefinitionListDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.DefinitionListDemo.render())
         end)
       end)
     end)
@@ -213,7 +213,7 @@ defmodule PhoenixDemoWeb.Components.PageGallery do
       state
       |> h2([], "Form Elements")
       |> div([class: "form-demo"], fn state ->
-        Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.FormDemo.render())
+        Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.FormDemo.render())
       end)
     end)
   end
@@ -223,7 +223,7 @@ defmodule PhoenixDemoWeb.Components.PageGallery do
       state
       |> h2([], "Tables")
       |> then(fn state ->
-        Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.TableDemo.render())
+        Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.TableDemo.render())
       end)
     end)
   end
@@ -235,13 +235,13 @@ defmodule PhoenixDemoWeb.Components.PageGallery do
       |> div([class: "component-grid"], fn state ->
         state
         |> render_demo_item("Article", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.ArticleDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.ArticleDemo.render())
         end)
         |> render_demo_item("Section", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.SectionDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.SectionDemo.render())
         end)
         |> render_demo_item("Aside", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.AsideDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.AsideDemo.render())
         end)
       end)
     end)
@@ -254,13 +254,13 @@ defmodule PhoenixDemoWeb.Components.PageGallery do
       |> div([class: "component-grid"], fn state ->
         state
         |> render_demo_item("Buttons", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.ButtonDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.ButtonDemo.render())
         end)
         |> render_demo_item("Links", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.LinkDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.LinkDemo.render())
         end)
         |> render_demo_item("Details/Summary", fn state ->
-          Phlex.SGML.append_raw(state, PhoenixDemoWeb.Components.DetailsDemo.render())
+          Phlex.SGML.unsafe_raw(state, PhoenixDemoWeb.Components.DetailsDemo.render())
         end)
       end)
     end)
@@ -277,7 +277,7 @@ defmodule PhoenixDemoWeb.Components.PageGallery do
             title: "Card #{i}",
             content: "This is card component #{i} demonstrating Phlex with StyleCapsule"
           })
-          Phlex.SGML.append_raw(acc_state, card_html)
+          Phlex.SGML.unsafe_raw(acc_state, card_html)
         end)
       end)
     end)

@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## Unreleased
+
+## 0.3.0 (2026-07-26)
+
+- Harden attribute output against javascript URLs, unsafe names, and nested data attributes
+- Validate dynamic HTML and SVG tag names at render time
+- Align `plain`/`raw` SafeObject rules with Phlex Ruby; add `unsafe_raw/2`
+- Implement process-local `cache/3` and `low_level_cache/3`
+- Add nested `render/2` with shared state and `before_template`/`around_template`/`after_template`/`render?` hooks
+- Record fragment byte offsets during cache capture and replay selective fragments by offset
+- Add `Phlex.CSV` with required `escape_csv_injection?/0` configuration
+- Add `Phlex.Kit` with explicit `kit_component/1` registration for nested helpers
+- Sync `Phlex.version/0` and README dep pin with package `0.3.0`
+
 ## 0.2.0
 
 - Update optional Phoenix dependencies to the latest supported versions

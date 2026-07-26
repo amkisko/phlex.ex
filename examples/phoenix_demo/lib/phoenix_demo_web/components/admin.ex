@@ -322,7 +322,7 @@ defmodule PhoenixDemoWeb.Components.Admin do
       state
       |> h2([class: "admin-card-title"], "Statistics Visualization")
       |> div([class: "admin-svg-container"], fn state ->
-        Phlex.SGML.append_raw(state, svg_content)
+        Phlex.SGML.unsafe_raw(state, svg_content)
       end)
     end)
   end

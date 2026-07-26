@@ -22,7 +22,7 @@ Add `phlex` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:phlex, "~> 0.1.0"}
+    {:phlex, "~> 0.3.0"}
   ]
 end
 ```

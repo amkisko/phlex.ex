@@ -3,6 +3,6 @@ defmodule PhlexTest do
   doctest Phlex
 
   test "version/0 returns the version" do
-    assert Phlex.version() == "0.1.0"
+    assert Phlex.version() == "0.3.0"
   end
 end
