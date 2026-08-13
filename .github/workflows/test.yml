@@ -2,6 +2,7 @@ name: test
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches: [main]
 
@@ -28,15 +29,15 @@ jobs:
       OTP_VERSION: "27"
       MIX_ENV: test
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
         with:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
       - name: Restore Mix/Hex/Rebar cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             deps
@@ -50,6 +51,7 @@ jobs:
             ${{ runner.os }}-beam-${{ env.OTP_VERSION }}-ex${{ env.ELIXIR_VERSION }}-
             ${{ runner.os }}-beam-
       - run: mix deps.get
+      - run: mix hex.audit
       - run: mix deps.compile
       - run: mix test.setup
       - run: mix coveralls.json
@@ -57,7 +59,7 @@ jobs:
         continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      - uses: codecov/codecov-action@v7
+      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./cover/excoveralls.json
