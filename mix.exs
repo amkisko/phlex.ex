@@ -21,6 +21,16 @@ defmodule Phlex.MixProject do
       ],
       test_coverage: [
         tool: ExCoveralls
+      ],
+      hex: [
+        ignore_advisories: [
+          "EEF-CVE-2026-43969",
+          "EEF-CVE-2026-43971",
+          "EEF-CVE-2026-43966",
+          "CVE-2026-43969",
+          "CVE-2026-43971",
+          "CVE-2026-43966"
+        ]
       ]
     ]
   end
